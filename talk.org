@@ -658,14 +658,14 @@ https://github.com/aphyr/tesser
   (->> (t/filter relevant?)
        (t/map convert-currency)
        ;; Facet runs fold on all keys in a map
-       (t/map #(select-keys % [:measure-a :measure-b]))
+       (t/map #(select-keys % [:a :b]))
        (t/facet)
        (t/fold iqr-transform)))
 
 (-> (t/chunk 1024 (load-data "data.edn"))
     (t/tesser multi-iqr-fold))
 
-;; {:measure-a [100.0 112.5] :measure-b [62.5 140.09375]}
+;; {:a [100.0 112.5] :b [62.5 140.09375]}
 #+END_SRC
 
 #+BEGIN_NOTES
@@ -715,7 +715,7 @@ https://github.com/aphyr/tesser
 (def linear-regression-fold
   (->> (t/filter relevant?)
        (t/map convert-currency)
-       (linear-regression :measure-a :measure-a)))
+       (linear-regression :a :b)))
 
 (-> (t/chunk 1024 (load-data "data.edn"))
     (t/tesser linear-regression-fold))
@@ -749,7 +749,7 @@ https://github.com/aphyr/tesser
   (let [dseq (text/dseq input-file)]
     (h/fold conf dseq work-dir
             #'linear-regression-dfold
-            :measure-a :measure-b)))
+            :a :b)))
 
 (defn -main [& args]
   (System/exit (tool/run tool args)))

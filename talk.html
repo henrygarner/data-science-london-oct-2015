@@ -1063,14 +1063,14 @@ NB: mean-step - will refer to later
   <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/filter relevant?<span style="color: #696969;">)</span>
        <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map convert-currency<span style="color: #696969;">)</span>
        <span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">Facet runs fold on all keys in a map</span>
-       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map #<span style="color: #696969;">(</span>select-keys <span style="color: #DFAF8F;">%</span> <span style="color: #696969;">[</span><span style="color: #BFEBBF;">:measure-a</span> <span style="color: #BFEBBF;">:measure-b</span><span style="color: #696969;">]</span><span style="color: #696969;">))</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map #<span style="color: #696969;">(</span>select-keys <span style="color: #DFAF8F;">%</span> <span style="color: #696969;">[</span><span style="color: #BFEBBF;">:a</span> <span style="color: #BFEBBF;">:b</span><span style="color: #696969;">]</span><span style="color: #696969;">))</span>
        <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/facet<span style="color: #696969;">)</span>
        <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/fold iqr-transform<span style="color: #696969;">)))</span>
 
 <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/chunk 1024 <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
     <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/tesser multi-iqr-fold<span style="color: #696969;">))</span>
 
-<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:measure-a [100.0 112.5] :measure-b [62.5 140.09375]}</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:a [100.0 112.5] :b [62.5 140.09375]}</span>
 </pre>
 </div>
 
@@ -1139,7 +1139,7 @@ NB: mean-step - will refer to later
 <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">linear-regression-fold</span>
   <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/filter relevant?<span style="color: #696969;">)</span>
        <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map convert-currency<span style="color: #696969;">)</span>
-       <span style="color: #696969;">(</span>linear-regression <span style="color: #BFEBBF;">:measure-a</span> <span style="color: #BFEBBF;">:measure-a</span><span style="color: #696969;">)))</span>
+       <span style="color: #696969;">(</span>linear-regression <span style="color: #BFEBBF;">:a</span> <span style="color: #BFEBBF;">:b</span><span style="color: #696969;">)))</span>
 
 <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/chunk 1024 <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
     <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/tesser linear-regression-fold<span style="color: #696969;">))</span>
@@ -1185,7 +1185,7 @@ NB: mean-step - will refer to later
   <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">let</span> <span style="color: #696969;">[</span>dseq <span style="color: #696969;">(</span><span style="color: #7CB8BB;">text</span>/dseq input-file<span style="color: #696969;">)</span><span style="color: #696969;">]</span>
     <span style="color: #696969;">(</span><span style="color: #7CB8BB;">h</span>/fold conf dseq work-dir
             #'linear-regression-dfold
-            <span style="color: #BFEBBF;">:measure-a</span> <span style="color: #BFEBBF;">:measure-b</span><span style="color: #696969;">)))</span>
+            <span style="color: #BFEBBF;">:a</span> <span style="color: #BFEBBF;">:b</span><span style="color: #696969;">)))</span>
 
 <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">-main</span> <span style="color: #696969;">[</span>&amp; args<span style="color: #696969;">]</span>
   <span style="color: #696969;">(</span><span style="color: #7CB8BB;">System</span>/exit <span style="color: #696969;">(</span><span style="color: #7CB8BB;">tool</span>/run tool args<span style="color: #696969;">)))</span>
