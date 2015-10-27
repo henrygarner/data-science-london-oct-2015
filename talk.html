@@ -1,0 +1,1315 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Expressive Parallel Analytics in Clojure</title>
+
+<link rel="stylesheet" href="./reveal.js/css/reveal.css"/>
+<link rel="stylesheet" href="./reveal.js/css/theme/solarized.css" id="theme"/>
+<link rel="stylesheet" href="./reveal.js/lib/css/zenburn.css"/>
+<!-- If the query includes 'print-pdf', include the PDF print sheet -->
+<script>
+    if( window.location.search.match( /print-pdf/gi ) ) {
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = './reveal.js/css/print/pdf.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+    }
+</script>
+<script type="text/javascript" src="MathJax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide">
+<h1>Expressive Parallel Analytics in Clojure</h1>
+<h2></h2>
+<h2><a href="mailto:"></a></h2>
+<h2></h2>
+</section>
+
+<section>
+<section id="slide-sec-1">
+<h2 id="sec-1">Who am I?</h2>
+<aside class="notes">
+<ul class="org-ul">
+<li>Was CTO of medium-sized data analytics company
+</li>
+<li>Switched to Clojure 4 years ago
+</li>
+<li>Left to write a book 1 year ago
+</li>
+<li>Now a freelance data scientist and data engineer
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-2">
+<h2 id="sec-2">Mission-critical data</h2>
+
+<div class="figure">
+<p><img src="./images/mastodon.png" alt="mastodon.png" />
+</p>
+</div>
+
+
+<div class="figure">
+<p><img src="./images/the-wur.png" alt="the-wur.png" />
+</p>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Released a few weeks ago
+</li>
+<li>New methodology
+</li>
+<li>New implementation
+</li>
+<li>Clojure!
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-3">
+<h2 id="sec-3">Stats</h2>
+<p>
+<a href="https://www.timeshighereducation.com/news/ranking-methodology-2016">https://www.timeshighereducation.com/news/ranking-methodology-2016</a>
+</p>
+
+<ul>
+<li>13 performance indicators</li>
+<li>10 quotient indicators</li>
+<li>4  weighted quotients across 6 subjects</li>
+<li>800+ institutions</li>
+<li>7  ranking tables</li>
+
+</ul>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Won't speak in detail about methodology
+</li>
+<li>Gives a flavour for the kinds of problems I'm addressing.
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-4">
+<h2 id="sec-4">Analytic pipeline</h2>
+<ul>
+<li>load rows</li>
+<li>calculate summary statistics</li>
+<li>process rows w.r.t. summary statistics</li>
+<li>[further processing]</li>
+<li>output</li>
+<li>x 13 x 7</li>
+
+</ul>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Normalise, calculate CDFs
+</li>
+
+<li>This is data engineering
+</li>
+<li>Want to productionise sexy algorithm
+</li>
+<li>Maybe you're building an intricate data processing system
+</li>
+
+<li>Set context&#x2026;
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-5">
+<h2 id="sec-5">Nope</h2>
+<div class="org-src-container">
+
+<pre  class="src src-javascript">do_something()
+do_something_else()
+then_do_this()
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Not talking about global state
+</li>
+<li>What languages are people using? (Python, R, SAS, Scala, Clojure?)
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-6">
+<h2 id="sec-6">Pipe.line()</h2>
+<div class="org-src-container">
+
+<pre  class="src src-javascript">PipeLine.doSomething().doSomethingElse().thenDoThis()
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Familiar if you've used Spark (RDDs)
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-7">
+<h2 id="sec-7">(Pipeline :-)</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span>then-do-this <span style="color: #696969;">(</span>do-something-else <span style="color: #696969;">(</span>do-something<span style="color: #696969;">)))</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>We're in Clojure-land
+</li>
+<li>Parens in a different place
+</li>
+
+<li>Let's use a concrete example&#x2026;
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-8">
+<h2 id="sec-8">Threading</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>select-relevant<span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>convert-currency<span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>assign-score<span style="color: #696969;">))</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Add sample data
+</li>
+
+<li>Thread-last Macro
+</li>
+
+<li>What are those functions doing?
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-9">
+<h2 id="sec-9">Enter Sequence-processing functions</h2>
+<ul>
+<li>map</li>
+<li>filter</li>
+<li>remove</li>
+<li>keep</li>
+<li>take</li>
+<li>partition</li>
+
+</ul>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>No reduce. Reduce takes a whole sequence and returns one thing
+</li>
+<li>Take and partition are stateful
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-10">
+<h2 id="sec-10">Threading II</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>filter relevant?<span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>map convert-currency<span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>map assign-score<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;;</span><span style="color: #7F9F7F;">({:name "A", :fx 0.8, :a 112.5, :b 62.5, :score 175.0}</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:name "B", :fx 0.2, :a 400.0, :b 400.0, :score 800.0}</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:name "D", :fx 0.5, :a 100.0, :b 140.0, :score 240.0})</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Standard sequence functions
+</li>
+<li>Familiar to anyone who has done Spark
+</li>
+
+<li>Problem 1:
+</li>
+<li>Processing is bound to data
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-11">
+<h2 id="sec-11">Solved?</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">process</span> <span style="color: #696969;">[</span>data<span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>filter relevant? data<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span>map convert-currency<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span>map assign-score<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span>process <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;;</span><span style="color: #7F9F7F;">({:name "A", :fx 0.8, :a 112.5, :b 62.5, :score 175.0}</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:name "B", :fx 0.2, :a 400.0, :b 400.0, :score 800.0}</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:name "D", :fx 0.5, :a 100.0, :b 140.0, :score 240.0})</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>We can paramaterise 'data'
+</li>
+
+<li>But the map and filter still make assumptions about the container
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-12">
+<h2 id="sec-12">&#x2026;Not really</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">v</span> <span style="color: #696969;">[</span>1 2 3 4<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">#'user/v</span>
+
+<span style="color: #696969;">(</span>type v<span style="color: #696969;">)</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">clojure.lang.PersistentVector</span>
+
+<span style="color: #696969;">(</span>type <span style="color: #696969;">(</span>map inc v<span style="color: #696969;">))</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">clojure.lang.LazySeq</span>
+
+<span style="color: #696969;">(</span>type <span style="color: #696969;">(</span>mapv inc v<span style="color: #696969;">))</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">clojure.lang.PersistentVector</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Map and mapv are tied to concrete representations
+</li>
+
+<li>Also intermediate collections, space and time hungry
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-13">
+<h2 id="sec-13">Enter Transducers</h2>
+
+<div class="figure">
+<p><img src="./images/decorator.png" alt="decorator.png" />
+</p>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Introduced in Clojure 1.7 around a year ago
+</li>
+<li>Separate the transformation from the source AND sink
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-14">
+<h2 id="sec-14">No Seq in Sight</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">xform</span>
+  <span style="color: #696969;">(</span>comp <span style="color: #696969;">(</span>filter relevant?<span style="color: #696969;">)</span>
+        <span style="color: #696969;">(</span>map convert-currency<span style="color: #696969;">)</span>
+        <span style="color: #696969;">(</span>map assign-score<span style="color: #696969;">)))</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>This is Clojure 1.7 map and filter
+</li>
+<li>They have become transducers
+</li>
+<li>Their composition is also a transducer
+</li>
+
+<li>See it in use
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-15">
+<h2 id="sec-15">Add the sequence</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span>sequence xform <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;;</span><span style="color: #7F9F7F;">({:name "A", :fx 0.8, :a 112.5, :b 62.5, :score 175.0}</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:name "B", :fx 0.2, :a 400.0, :b 400.0, :score 800.0}</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:name "D", :fx 0.5, :a 100.0, :b 140.0, :score 240.0})</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>1.7 introduces sequence function
+</li>
+<li>Produces lazy sequence
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-16">
+<h2 id="sec-16">It is an open system</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>sequence <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>take 2<span style="color: #696969;">))))</span>
+
+<span style="color: #5F7F5F;">;;</span><span style="color: #7F9F7F;">({:name "A", :fx 0.8, :a 112.5, :b 62.5, :score 175.0}</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:name "B", :fx 0.2, :a 400.0, :b 400.0, :score 800.0})</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>sequence <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">))))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">(175.0 800.0 240.0)</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Compose transducers to get another transducer
+</li>
+
+<li>Take score as example, how would we sum up?
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-17">
+<h2 id="sec-17">Sum up a sequence</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>sequence <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">)))</span>
+     <span style="color: #696969;">(</span>reduce +<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">1215.0</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Added intermediate collection back
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-18">
+<h2 id="sec-18">Transduce</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>transduce <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">))</span> +<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">1215.0</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Transduce added in Clojure 1.7
+</li>
+<li>Takes a transformation and a step function
+</li>
+
+<li>What does a step function look like?
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-19">
+<h2 id="sec-19">Reducing step function</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span>+<span style="color: #696969;">)</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">0</span>
+
+<span style="color: #696969;">(</span>+ 42<span style="color: #696969;">)</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">42</span>
+
+<span style="color: #696969;">(</span>+ 21 21<span style="color: #696969;">)</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">42</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span>conj<span style="color: #696969;">)</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">[]</span>
+
+<span style="color: #696969;">(</span>conj <span style="color: #696969;">[</span>42<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">[42]</span>
+
+<span style="color: #696969;">(</span>conj <span style="color: #696969;">[</span>21<span style="color: #696969;">]</span> 21<span style="color: #696969;">)</span>
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">[21 21]</span>
+</pre>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-20">
+<h2 id="sec-20">An IQR step function</h2>
+<p>
+<a href="https://github.com/HdrHistogram/HdrHistogram">https://github.com/HdrHistogram/HdrHistogram</a>
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">hist-iqr</span>
+  <span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">Zero arity init</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[]</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">DoubleHistogram.</span> 1e8 3<span style="color: #696969;">))</span>
+
+  <span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">Two arity step</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[</span>hist x<span style="color: #696969;">]</span>
+   <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">doto</span> hist
+     <span style="color: #696969;">(</span><span style="color: #94BFF3;">.recordValue</span> x<span style="color: #696969;">)))</span>
+
+  <span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">Single arity complete</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[</span>hist<span style="color: #696969;">]</span>
+   <span style="color: #696969;">(</span>vector <span style="color: #696969;">(</span><span style="color: #94BFF3;">.getValueAtPercentile</span> hist 25<span style="color: #696969;">)</span>
+           <span style="color: #696969;">(</span><span style="color: #94BFF3;">.getValueAtPercentile</span> hist 75<span style="color: #696969;">))))</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Init is optional
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-21">
+<h2 id="sec-21">Using the custom step</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>transduce <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">))</span> hist-iqr<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">[175.0 240.0]</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Identical transformer, very different output
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-22">
+<h2 id="sec-22">Sequential processing</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">iqr-sequence</span> <span style="color: #696969;">[</span>xform data<span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">let</span> <span style="color: #696969;">[[</span>from to<span style="color: #696969;">]</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> data
+                       <span style="color: #696969;">(</span>transduce <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">))</span> hist-iqr<span style="color: #696969;">))</span><span style="color: #696969;">]</span>
+    <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> data
+         <span style="color: #696969;">(</span>sequence <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>filter #<span style="color: #696969;">(</span>&lt;= from <span style="color: #696969;">(</span><span style="color: #BFEBBF;">:score</span> <span style="color: #DFAF8F;">%</span><span style="color: #696969;">)</span> to<span style="color: #696969;">)))))))</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Destructure IQR
+</li>
+<li>No additional sequences created
+</li>
+
+<li>Let's assume we want to calculate mean&#x2026;
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-23">
+<h2 id="sec-23">Mean step function</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">mean-step</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[]</span> <span style="color: #696969;">{</span><span style="color: #BFEBBF;">:sum</span> 0 <span style="color: #BFEBBF;">:count</span> 0<span style="color: #696969;">}</span><span style="color: #696969;">)</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[</span>accum x<span style="color: #696969;">]</span>
+   <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span>update-in accum <span style="color: #696969;">[</span><span style="color: #BFEBBF;">:count</span><span style="color: #696969;">]</span> inc<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span>update-in <span style="color: #696969;">[</span><span style="color: #BFEBBF;">:sum</span><span style="color: #696969;">]</span> + x<span style="color: #696969;">)))</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[</span><span style="color: #696969;">{</span><span style="color: #BFEBBF;">:keys</span> <span style="color: #696969;">[</span>sum count<span style="color: #696969;">]</span><span style="color: #696969;">}</span><span style="color: #696969;">]</span>
+   <span style="color: #696969;">(</span>/ sum count<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>transduce <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">))</span> mean-step<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">405.0</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Once again:
+</li>
+<li>init
+</li>
+<li>step
+</li>
+<li>completion
+</li>
+</ul>
+
+<p>
+NB: mean-step - will refer to later
+</p>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-24">
+<h2 id="sec-24">Mean of the IQR</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">iqr-mean</span> <span style="color: #696969;">[</span>xform data<span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">let</span> <span style="color: #696969;">[[</span>from to<span style="color: #696969;">]</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> data
+                       <span style="color: #696969;">(</span>transduce <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">))</span> hist-iqr<span style="color: #696969;">))</span><span style="color: #696969;">]</span>
+    <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> data
+         <span style="color: #696969;">(</span>transduce <span style="color: #696969;">(</span>comp xform
+                     <span style="color: #696969;">(</span>filter #<span style="color: #696969;">(</span>&lt;= from <span style="color: #696969;">(</span><span style="color: #BFEBBF;">:score</span> <span style="color: #DFAF8F;">%</span><span style="color: #696969;">)</span> to<span style="color: #696969;">))</span>
+                     <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">))</span>
+                    mean-step<span style="color: #696969;">))))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">207.5</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>No intermediate collections
+</li>
+
+<li>Are we done? No - parallelism
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-25">
+<h2 id="sec-25">Enter Reducers</h2>
+<ul>
+<li>Pre-date transducers</li>
+<li>Also aim to reduce number of intermediate collections</li>
+<li>Bring parallelism through Java's fork/join</li>
+
+</ul>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Fork / join available in Java 7 +
+</li>
+<li>Available since 2011
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-26">
+<h2 id="sec-26">Fork / Join</h2>
+<div class="org-src-container">
+
+<pre  class="src src-txt">solve(problem):
+    if problem is small enough:
+        solve problem directly (sequential algorithm)
+    else:
+        for part in subdivide(problem)
+            fork subtask to solve part
+        join all subtasks spawned in previous loop
+        combine results from subtasks
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>We can already solve the subparts
+</li>
+<li>We need a way to combine their results
+</li>
+
+<li>Not combine like Hadoop combiner
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-27">
+<h2 id="sec-27">Parallel reduce / combine</h2>
+
+<div class="figure">
+<p><img src="./images/reductions-tree.png" alt="reductions-tree.png" />
+</p>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-28">
+<h2 id="sec-28">&#x2026;schematically</h2>
+
+<div class="figure">
+<p><img src="./images/reduce-combine.png" alt="reduce-combine.png" />
+</p>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-29">
+<h2 id="sec-29">Mean reducers</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span>require <span style="color: #696969;">[</span>'<span style="color: #7CB8BB;">clojure.core.reducers</span> <span style="color: #BFEBBF;">:as</span> r<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">mean-step</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[]</span> <span style="color: #696969;">{</span><span style="color: #BFEBBF;">:sum</span> 0 <span style="color: #BFEBBF;">:count</span> 0<span style="color: #696969;">}</span><span style="color: #696969;">)</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[</span>accum x<span style="color: #696969;">]</span>
+   <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span>update-in accum <span style="color: #696969;">[</span><span style="color: #BFEBBF;">:count</span><span style="color: #696969;">]</span> inc<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span>update-in <span style="color: #696969;">[</span><span style="color: #BFEBBF;">:sum</span><span style="color: #696969;">]</span> + x<span style="color: #696969;">)))</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[</span><span style="color: #696969;">{</span><span style="color: #BFEBBF;">:keys</span> <span style="color: #696969;">[</span>sum count<span style="color: #696969;">]</span><span style="color: #696969;">}</span><span style="color: #696969;">]</span>
+   <span style="color: #696969;">(</span>/ sum count<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">mean-combiner</span>
+  <span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">Combiner is used for init value</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[]</span> <span style="color: #696969;">{</span><span style="color: #BFEBBF;">:sum</span> 0 <span style="color: #BFEBBF;">:count</span> 0<span style="color: #696969;">}</span><span style="color: #696969;">)</span>
+  <span style="color: #696969;">(</span><span style="color: #696969;">[</span>a b<span style="color: #696969;">]</span>
+   <span style="color: #696969;">(</span>merge-with + a b<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>into <span style="color: #696969;">[]</span> <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">)))</span>
+     <span style="color: #696969;">(</span><span style="color: #7CB8BB;">r</span>/fold mean-combiner mean-step<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:sum 1215.0, :count 3}</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Fold takes the combiner and step function
+</li>
+
+<li>Using into Clojure's generic collection
+</li>
+<li>Again, intermediate collection before fold
+</li>
+<li>The completion function isn't called
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-30">
+<h2 id="sec-30">Intermediate collections revisited</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">scorer</span>
+  <span style="color: #696969;">(</span>comp xform <span style="color: #696969;">(</span>map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span>into <span style="color: #696969;">[]</span> scorer<span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span><span style="color: #7CB8BB;">r</span>/fold mean-combiner mean-step<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:sum 1215.0, :count 3}</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">)</span>
+     <span style="color: #696969;">(</span><span style="color: #7CB8BB;">r</span>/fold mean-combiner <span style="color: #696969;">(</span>scorer mean-step<span style="color: #696969;">)))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:sum 1215.0, :count 3}</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Scorer is our transducer
+</li>
+<li>Getting a reducing function 'out of' a transducer
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-31">
+<h2 id="sec-31">Anatomy of a transducer</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">filter</span>' <span style="color: #696969;">[</span>pred<span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> <span style="color: #696969;">[</span>rf<span style="color: #696969;">]</span>
+    <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span>
+      <span style="color: #696969;">(</span><span style="color: #696969;">[]</span> <span style="color: #696969;">(</span>rf<span style="color: #696969;">))</span>
+      <span style="color: #696969;">(</span><span style="color: #696969;">[</span>result<span style="color: #696969;">]</span> <span style="color: #696969;">(</span>rf result<span style="color: #696969;">))</span>
+      <span style="color: #696969;">(</span><span style="color: #696969;">[</span>result input<span style="color: #696969;">]</span>
+       <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">if</span> <span style="color: #696969;">(</span>pred input<span style="color: #696969;">)</span>
+         <span style="color: #696969;">(</span>rf result input<span style="color: #696969;">)</span>
+         result<span style="color: #696969;">)))))</span>
+
+<span style="color: #696969;">(</span>transduce <span style="color: #696969;">(</span>filter' even?<span style="color: #696969;">)</span> conj <span style="color: #696969;">[</span>1 2 3 4 5 6<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">[2 4 6]</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>transducers are just functions of 3 arities
+</li>
+<li>arity zero is init
+</li>
+<li>arity one is completion
+</li>
+<li>arity two is the reducing function
+</li>
+<li>all just function composition
+</li>
+<li>these ideas are general
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-32">
+<h2 id="sec-32">Enter Tesser</h2>
+<p>
+<a href="https://github.com/aphyr/tesser">https://github.com/aphyr/tesser</a>
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #BFEBBF;">:require</span> <span style="color: #696969;">[</span><span style="color: #7CB8BB;">tesser.core</span> <span style="color: #BFEBBF;">:as</span> t<span style="color: #696969;">]</span>
+          <span style="color: #696969;">[</span><span style="color: #7CB8BB;">tesser.math</span> <span style="color: #BFEBBF;">:as</span> m<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">mean-fold</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/filter relevant?<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map convert-currency<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map assign-score<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">m</span>/mean<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/chunk 1024 <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
+    <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/tesser mean-fold<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">405.0</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>The mean fold is a composition of processing steps (no data)
+</li>
+<li>Tesser requires us to explicitly chunk data (no fork/join)
+</li>
+
+<li>How does Tesser represent folds&#x2026;
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-33">
+<h2 id="sec-33">Mean recipe</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">{</span><span style="color: #BFEBBF;">:reducer-identity</span>  <span style="color: #696969;">(</span>constantly <span style="color: #696969;">[</span>0 0<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+ <span style="color: #BFEBBF;">:reducer</span>           <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> reducer <span style="color: #696969;">[[</span>s c<span style="color: #696969;">]</span> x<span style="color: #696969;">]</span>
+                      <span style="color: #696969;">[</span><span style="color: #696969;">(</span>+ s x<span style="color: #696969;">)</span> <span style="color: #696969;">(</span>inc c<span style="color: #696969;">)</span><span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+ <span style="color: #BFEBBF;">:post-reducer</span>      identity
+ <span style="color: #BFEBBF;">:combiner-identity</span> <span style="color: #696969;">(</span>constantly <span style="color: #696969;">[</span>0 0<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+ <span style="color: #BFEBBF;">:combiner</span>          <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> combiner <span style="color: #696969;">[</span>x y<span style="color: #696969;">]</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">core</span>/map + x y<span style="color: #696969;">))</span>
+ <span style="color: #BFEBBF;">:post-combiner</span>     <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> post-combiner <span style="color: #696969;">[</span>x<span style="color: #696969;">]</span>
+                      <span style="color: #696969;">(</span>double <span style="color: #696969;">(</span>/ <span style="color: #696969;">(</span>first x<span style="color: #696969;">)</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">core</span>/max 1 <span style="color: #696969;">(</span>last x<span style="color: #696969;">)))</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Actually Tesser's internal representation
+</li>
+
+<li>Can we define our own? Sure!
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-34">
+<h2 id="sec-34">Defining our own fold</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">iqr-transform</span>
+  <span style="color: #696969;">{</span><span style="color: #BFEBBF;">:reducer-identity</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> <span style="color: #696969;">[]</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">DoubleHistogram.</span> 1e8 3<span style="color: #696969;">))</span>
+   <span style="color: #BFEBBF;">:reducer</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> <span style="color: #696969;">[</span>hist x<span style="color: #696969;">]</span>
+              <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">doto</span> hist
+                <span style="color: #696969;">(</span><span style="color: #94BFF3;">.recordValue</span> x<span style="color: #696969;">)))</span>
+   <span style="color: #BFEBBF;">:post-reducer</span> identity
+   <span style="color: #BFEBBF;">:combiner-identity</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> <span style="color: #696969;">[]</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">DoubleHistogram.</span> 1e8 3<span style="color: #696969;">))</span>
+   <span style="color: #BFEBBF;">:combiner</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> <span style="color: #696969;">[</span>a b<span style="color: #696969;">]</span>
+               <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">doto</span> a <span style="color: #696969;">(</span><span style="color: #94BFF3;">.add</span> b<span style="color: #696969;">)))</span>
+   <span style="color: #BFEBBF;">:post-combiner</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> <span style="color: #696969;">[</span>hist<span style="color: #696969;">]</span>
+                    <span style="color: #696969;">(</span>vector <span style="color: #696969;">(</span><span style="color: #94BFF3;">.getValueAtPercentile</span> hist 25<span style="color: #696969;">)</span>
+                            <span style="color: #696969;">(</span><span style="color: #94BFF3;">.getValueAtPercentile</span> hist 75<span style="color: #696969;">)))</span><span style="color: #696969;">}</span><span style="color: #696969;">)</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">iqr-fold</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/filter relevant?<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map convert-currency<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map assign-score<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/fold iqr-transform<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/chunk 1024 <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
+    <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/tesser iqr-fold<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">[175.0 240.0]</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Note combiner function. Adds histograms calculated independently.
+</li>
+<li>Tesser provides tesser.math namespace providing a variety of useful functions.
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-35">
+<h2 id="sec-35">Mathematical helpers</h2>
+<ul>
+<li>mean</li>
+<li>variance</li>
+<li>standard-deviation</li>
+<li>covariance</li>
+<li>correlation</li>
+<li>covariance-matrix</li>
+<li>correlation-matrix</li>
+<li>digest (histogram, cardinality estimation)</li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-36">
+<h2 id="sec-36">Calculating variance</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">{</span><span style="color: #BFEBBF;">:reducer-identity</span> <span style="color: #696969;">(</span>constantly <span style="color: #696969;">[</span>0 0 0<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+ <span style="color: #BFEBBF;">:reducer</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> count-mean-sq <span style="color: #696969;">[[</span>count mean sum-of-squares<span style="color: #696969;">]</span> x<span style="color: #696969;">]</span>
+            <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">let</span> <span style="color: #696969;">[</span>count' <span style="color: #696969;">(</span>inc count<span style="color: #696969;">)</span>
+                  mean'  <span style="color: #696969;">(</span>+ mean <span style="color: #696969;">(</span>/ <span style="color: #696969;">(</span>- x mean<span style="color: #696969;">)</span> count'<span style="color: #696969;">))</span><span style="color: #696969;">]</span>
+              <span style="color: #696969;">[</span>count'
+               mean'
+               <span style="color: #696969;">(</span>+ sum-of-squares <span style="color: #696969;">(</span>* <span style="color: #696969;">(</span>- x mean'<span style="color: #696969;">)</span> <span style="color: #696969;">(</span>- x mean<span style="color: #696969;">)))</span><span style="color: #696969;">]</span><span style="color: #696969;">))</span>
+ <span style="color: #BFEBBF;">:post-reducer</span> identity
+ <span style="color: #BFEBBF;">:combiner-identity</span> <span style="color: #696969;">(</span>constantly <span style="color: #696969;">[</span>0 0 0<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+ <span style="color: #BFEBBF;">:combiner</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> partcmsq <span style="color: #696969;">[[</span>c m sq<span style="color: #696969;">]</span> <span style="color: #696969;">[</span>c2 m2 sq2<span style="color: #696969;">]]</span>
+             <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">let</span> <span style="color: #696969;">[</span>count <span style="color: #696969;">(</span>+ c c2<span style="color: #696969;">)</span><span style="color: #696969;">]</span>
+               <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">if</span> <span style="color: #696969;">(</span>zero? count<span style="color: #696969;">)</span>
+                 <span style="color: #696969;">[</span>c m sq<span style="color: #696969;">]</span>
+                 <span style="color: #696969;">[</span>count
+                  <span style="color: #696969;">(</span>/ <span style="color: #696969;">(</span>+ <span style="color: #696969;">(</span>* c m<span style="color: #696969;">)</span> <span style="color: #696969;">(</span>* c2 m2<span style="color: #696969;">))</span> count<span style="color: #696969;">)</span>
+                  <span style="color: #696969;">(</span>+ sq sq2 <span style="color: #696969;">(</span>/ <span style="color: #696969;">(</span>* <span style="color: #696969;">(</span>- m2 m<span style="color: #696969;">)</span> <span style="color: #696969;">(</span>- m2 m<span style="color: #696969;">)</span> c c2<span style="color: #696969;">)</span> count<span style="color: #696969;">))</span><span style="color: #696969;">]</span><span style="color: #696969;">)))</span>
+ <span style="color: #BFEBBF;">:post-combiner</span> <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">fn</span> vardiv <span style="color: #696969;">[</span>x<span style="color: #696969;">]</span>
+                  <span style="color: #696969;">(</span>double <span style="color: #696969;">(</span>/ <span style="color: #696969;">(</span>last x<span style="color: #696969;">)</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">core</span>/max 1 <span style="color: #696969;">(</span>dec <span style="color: #696969;">(</span>first x<span style="color: #696969;">))))))</span><span style="color: #696969;">}</span>
+</pre>
+</div>
+
+
+</section>
+</section>
+<section>
+<section id="slide-sec-37">
+<h2 id="sec-37">Other combinators</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">multi-iqr-fold</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/filter relevant?<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map convert-currency<span style="color: #696969;">)</span>
+       <span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">Facet runs fold on all keys in a map</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map #<span style="color: #696969;">(</span>select-keys <span style="color: #DFAF8F;">%</span> <span style="color: #696969;">[</span><span style="color: #BFEBBF;">:measure-a</span> <span style="color: #BFEBBF;">:measure-b</span><span style="color: #696969;">]</span><span style="color: #696969;">))</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/facet<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/fold iqr-transform<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/chunk 1024 <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
+    <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/tesser multi-iqr-fold<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:measure-a [100.0 112.5] :measure-b [62.5 140.09375]}</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Facet when your input is a map
+</li>
+<li>You'd like to run the same fold on all values
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-38">
+<h2 id="sec-38">Other combinators</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">fused-fold</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/filter relevant?<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map convert-currency<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map assign-score<span style="color: #696969;">)</span>
+       <span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">Fuse runs different named folds</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/fuse <span style="color: #696969;">{</span><span style="color: #BFEBBF;">:count</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/count<span style="color: #696969;">)</span>
+                <span style="color: #BFEBBF;">:iqr</span>   <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map <span style="color: #BFEBBF;">:score</span><span style="color: #696969;">)</span>
+                            <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/fold iqr-transform<span style="color: #696969;">))</span><span style="color: #696969;">}</span><span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/chunk 1024 <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
+    <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/tesser fused-fold<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:count 3, :iqr [175.0 240.0]}</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>You'd to calculate several folds in parallel
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-39">
+<h2 id="sec-39">Simple Regression</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">calculate-coefficients</span> <span style="color: #696969;">[</span><span style="color: #696969;">{</span><span style="color: #BFEBBF;">:keys</span> <span style="color: #696969;">[</span>covariance variance-x
+                                      mean-x mean-y<span style="color: #696969;">]</span><span style="color: #696969;">}</span><span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">let</span> <span style="color: #696969;">[</span>slope <span style="color: #696969;">(</span>/ covariance variance-x<span style="color: #696969;">)</span><span style="color: #696969;">]</span>
+    <span style="color: #696969;">{</span><span style="color: #BFEBBF;">:intercept</span> <span style="color: #696969;">(</span>- mean-y <span style="color: #696969;">(</span>* mean-x slope<span style="color: #696969;">))</span>
+     <span style="color: #BFEBBF;">:slope</span>     slope<span style="color: #696969;">}</span><span style="color: #696969;">))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">linear-regression</span> <span style="color: #696969;">[</span>fx fy fold<span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> fold
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/fuse <span style="color: #696969;">{</span><span style="color: #BFEBBF;">:covariance</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">m</span>/covariance fx fy<span style="color: #696969;">)</span>
+                <span style="color: #BFEBBF;">:variance-x</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">m</span>/variance <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map fx<span style="color: #696969;">))</span>
+                <span style="color: #BFEBBF;">:mean-x</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">m</span>/mean <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map fx<span style="color: #696969;">))</span>
+                <span style="color: #BFEBBF;">:mean-y</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">m</span>/mean <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map fx<span style="color: #696969;">))</span><span style="color: #696969;">}</span><span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/post-combine calculate-coefficients<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #DFAF8F;">linear-regression-fold</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/filter relevant?<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map convert-currency<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span>linear-regression <span style="color: #BFEBBF;">:measure-a</span> <span style="color: #BFEBBF;">:measure-a</span><span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/chunk 1024 <span style="color: #696969;">(</span>load-data <span style="color: #CC9393;">"data.edn"</span><span style="color: #696969;">))</span>
+    <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/tesser linear-regression-fold<span style="color: #696969;">))</span>
+
+<span style="color: #5F7F5F;">;; </span><span style="color: #7F9F7F;">{:intercept 68.05555555555557, :slope 0.6666666666666666}</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>Having calculated many statistics
+</li>
+<li>Want to perform some post-processing on the results
+</li>
+<li>Keep it within the fold
+</li>
+
+<li>Where's my cake?
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-40">
+<h2 id="sec-40">Yes, it is web scale</h2>
+<div class="org-src-container">
+
+<pre  class="src src-clojure"><span style="color: #696969;">(</span><span style="color: #BFEBBF;">:require</span> <span style="color: #696969;">[</span><span style="color: #7CB8BB;">tesser.hadoop</span> <span style="color: #BFEBBF;">:as</span> h<span style="color: #696969;">]</span>
+          <span style="color: #696969;">[</span><span style="color: #7CB8BB;">parkour.io.text</span> <span style="color: #BFEBBF;">:as</span> text<span style="color: #696969;">]</span>
+          <span style="color: #696969;">[</span><span style="color: #7CB8BB;">parkour.tool</span> <span style="color: #BFEBBF;">:as</span> tool<span style="color: #696969;">]</span><span style="color: #696969;">)</span>
+<span style="color: #696969;">(</span><span style="color: #BFEBBF;">:gen-class</span><span style="color: #696969;">)</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">linear-regression-dfold</span> <span style="color: #696969;">[</span>fx fy<span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">-&gt;&gt;</span> <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map read-string<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/filter relevant?<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span><span style="color: #7CB8BB;">t</span>/map convert-currency<span style="color: #696969;">)</span>
+       <span style="color: #696969;">(</span>linear-regression fx fy<span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">tool</span> <span style="color: #696969;">[</span>conf input-file work-dir<span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">let</span> <span style="color: #696969;">[</span>dseq <span style="color: #696969;">(</span><span style="color: #7CB8BB;">text</span>/dseq input-file<span style="color: #696969;">)</span><span style="color: #696969;">]</span>
+    <span style="color: #696969;">(</span><span style="color: #7CB8BB;">h</span>/fold conf dseq work-dir
+            #'linear-regression-dfold
+            <span style="color: #BFEBBF;">:measure-a</span> <span style="color: #BFEBBF;">:measure-b</span><span style="color: #696969;">)))</span>
+
+<span style="color: #696969;">(</span><span style="color: #F0DFAF; font-weight: bold;">defn</span> <span style="color: #93E0E3;">-main</span> <span style="color: #696969;">[</span>&amp; args<span style="color: #696969;">]</span>
+  <span style="color: #696969;">(</span><span style="color: #7CB8BB;">System</span>/exit <span style="color: #696969;">(</span><span style="color: #7CB8BB;">tool</span>/run tool args<span style="color: #696969;">)))</span>
+</pre>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>We can take the same fold apply it in a very different environment
+</li>
+<li>Develop locally, run remotely
+</li>
+</ul>
+
+</aside>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-41">
+<h2 id="sec-41">Summary</h2>
+<ul>
+<li>Separate process from substrate</li>
+<li>Transducers, step functions and transducible processes</li>
+<li>Reducing and combining functions</li>
+<li>Create composable, extensible units of computation</li>
+<li>Defer decisions about context</li>
+<li>Benefit</li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-42">
+<h2 id="sec-42">Thanks!</h2>
+<p>
+<a href="https://github.com/henrygarner/data-science-london-oct-2015">https://github.com/henrygarner/data-science-london-oct-2015</a>
+</p>
+
+
+<div class="figure">
+<p><img src="./images/henrygarner.jpeg" alt="henrygarner.jpeg" />
+</p>
+</div>
+
+<p>
+Henry Garner
+</p>
+
+<p>
+@henrygarner
+</p>
+
+</section>
+</section>
+<section>
+<section id="slide-sec-43">
+<h2 id="sec-43">If you liked this&#x2026;</h2>
+<p>
+<a href="http://cljds.com/cljds-book">http://cljds.com/cljds-book</a> | 
+<a href="http://cljds.com/cljds-amzn">http://cljds.com/cljds-amzn</a>
+</p>
+
+
+<div class="figure">
+<p><img src="./images/clojure-data-science.png" alt="clojure-data-science.png" />
+</p>
+</div>
+
+<aside class="notes">
+<ul class="org-ul">
+<li>This is new material
+</li>
+<li>Cover Clojure applied to statistical analysis
+</li>
+<li>Ideally you know a little Clojure already
+</li>
+<li>Learn statistics and machine learning with Clojure
+</li>
+</ul>
+
+</aside>
+</section>
+</section>
+</div>
+</div>
+
+<script src="./reveal.js/lib/js/head.min.js"></script>
+<script src="./reveal.js/js/reveal.js"></script>
+
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+
+controls: false,
+progress: false,
+history: true,
+center: true,
+slideNumber: true,
+rollingLinks: false,
+keyboard: true,
+overview: true,
+
+theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+transition: Reveal.getQueryHash().transition || 'fade', // default/cube/page/concave/zoom/linear/fade/none
+transitionSpeed: 'default',
+multiplex: {
+    secret: '', // null if client
+    id: '', // id, obtained from socket.io server
+    url: '' // Location of socket.io server
+},
+
+// Optional libraries used to extend on reveal.js
+dependencies: [
+ { src: './reveal.js/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+ { src: './reveal.js/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: './reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: './reveal.js/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+ { src: './reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+ { src: './reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+]
+});
+</script>
+</body>
+</html>

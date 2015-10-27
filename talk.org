@@ -170,7 +170,7 @@ PipeLine.doSomething().doSomethingElse().thenDoThis()
 #+BEGIN_NOTES
 - We can paramaterise 'data'
 
-- But the map and remove still make assumptions about the container
+- But the map and filter still make assumptions about the container
 #+END_NOTES
 
 * ...Not really
@@ -214,7 +214,7 @@ PipeLine.doSomething().doSomethingElse().thenDoThis()
 #+END_SRC
 
 #+BEGIN_NOTES
-- This is Clojure 1.7 map and remove
+- This is Clojure 1.7 map and filter
 - They have become transducers
 - Their composition is also a transducer
 
@@ -494,10 +494,12 @@ solve(problem):
 (->> (load-data "data.edn")
      (into [] scorer)
      (r/fold mean-combiner mean-step))
+
 ;; {:sum 1215.0, :count 3}
 
 (->> (load-data "data.edn")
      (r/fold mean-combiner (scorer mean-step)))
+
 ;; {:sum 1215.0, :count 3}
 #+END_SRC
 
@@ -550,6 +552,7 @@ https://github.com/aphyr/tesser
 
 (-> (t/chunk 1024 (load-data "data.edn"))
     (t/tesser mean-fold))
+
 ;; 405.0
 #+END_SRC
 
@@ -604,6 +607,7 @@ https://github.com/aphyr/tesser
 
 (-> (t/chunk 1024 (load-data "data.edn"))
     (t/tesser iqr-fold))
+
 ;; [175.0 240.0]
 #+END_SRC
 
@@ -673,7 +677,7 @@ https://github.com/aphyr/tesser
 
 #+BEGIN_SRC clojure
 (def fused-fold
-  (->> (t/remove irrelevant?)
+  (->> (t/filter relevant?)
        (t/map convert-currency)
        (t/map assign-score)
        ;; Fuse runs different named folds
