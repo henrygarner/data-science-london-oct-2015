@@ -1,0 +1,790 @@
+#+Title: Expressive Parallel Analytics in Clojure
+#+Author:
+#+Email:
+
+#+REVEAL_EXTRA_CSS: ./reveal.js/lib/css/zenburn.css
+#+REVEAL_MATHJAX_URL: MathJax/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+#+REVEAL_THEME: solarized
+#+OPTIONS: num:nil toc:nil reveal_mathjax:t reveal_history:t reveal_control:nil reveal_progress:nil
+#+REVEAL_TRANS: fade
+
+* Who am I?
+
+#+BEGIN_NOTES
+- Was CTO of medium-sized data analytics company
+- Switched to Clojure 4 years ago
+- Left to write a book 1 year ago
+- Now a freelance data scientist and data engineer
+#+END_NOTES
+
+* Mission-critical data
+
+[[./images/mastodon.png]]
+
+[[./images/the-wur.png]]
+
+#+BEGIN_NOTES
+- Released a few weeks ago
+- New methodology
+- New implementation
+- Clojure!
+#+END_NOTES
+
+* Stats
+
+https://www.timeshighereducation.com/news/ranking-methodology-2016
+
+- 13 performance indicators
+- 10 quotient indicators
+- 4  weighted quotients across 6 subjects
+- 800+ institutions
+- 7  ranking tables
+
+#+BEGIN_NOTES
+- Won't speak in detail about methodology
+- Gives a flavour for the kinds of problems I'm addressing.
+#+END_NOTES
+
+* Analytic pipeline
+
+- load rows
+- calculate summary statistics
+- process rows w.r.t. summary statistics
+- [further processing]
+- output
+- x 13 x 7
+
+#+BEGIN_NOTES
+- Normalise, calculate CDFs
+
+- This is data engineering
+- Want to productionise sexy algorithm
+- Maybe you're building an intricate data processing system
+
+- Set context...
+#+END_NOTES
+
+* Nope
+
+#+BEGIN_SRC javascript
+do_something()
+do_something_else()
+then_do_this()
+#+END_SRC
+
+#+BEGIN_NOTES
+- Not talking about global state
+- What languages are people using? (Python, R, SAS, Scala, Clojure?)
+#+END_NOTES
+
+* Pipe.line()
+
+#+BEGIN_SRC javascript
+PipeLine.doSomething().doSomethingElse().thenDoThis()
+#+END_SRC
+
+#+BEGIN_NOTES
+- Familiar if you've used Spark (RDDs)
+#+END_NOTES
+
+* (Pipeline :-)
+
+#+BEGIN_SRC clojure
+(then-do-this (do-something-else (do-something)))
+#+END_SRC
+
+#+BEGIN_NOTES
+- We're in Clojure-land
+- Parens in a different place
+
+- Let's use a concrete example...
+#+END_NOTES
+
+* Threading
+
+#+BEGIN_SRC clojure
+(->> (load-data "data.edn")
+     (select-relevant)
+     (convert-currency)
+     (assign-score))
+#+END_SRC
+
+#+BEGIN_NOTES
+- Add sample data
+
+- Thread-last Macro
+
+- What are those functions doing?
+#+END_NOTES
+
+* Enter Sequence-processing functions
+
+- map
+- filter
+- remove
+- keep
+- take
+- partition
+
+#+BEGIN_NOTES
+- No reduce. Reduce takes a whole sequence and returns one thing
+- Take and partition are stateful
+#+END_NOTES
+
+* Threading II
+
+#+BEGIN_SRC clojure
+(->> (load-data "data.edn")
+     (filter relevant?)
+     (map convert-currency)
+     (map assign-score))
+
+;;({:name "A", :fx 0.8, :a 112.5, :b 62.5, :score 175.0}
+;; {:name "B", :fx 0.2, :a 400.0, :b 400.0, :score 800.0}
+;; {:name "D", :fx 0.5, :a 100.0, :b 140.0, :score 240.0})
+#+END_SRC
+
+#+BEGIN_NOTES
+- Standard sequence functions
+- Familiar to anyone who has done Spark
+
+- Problem 1:
+- Processing is bound to data
+#+END_NOTES
+
+* Solved?
+
+#+BEGIN_SRC clojure
+(defn process [data]
+  (->> (filter relevant? data)
+       (map convert-currency)
+       (map assign-score)))
+
+(process (load-data "data.edn"))
+
+;;({:name "A", :fx 0.8, :a 112.5, :b 62.5, :score 175.0}
+;; {:name "B", :fx 0.2, :a 400.0, :b 400.0, :score 800.0}
+;; {:name "D", :fx 0.5, :a 100.0, :b 140.0, :score 240.0})
+#+END_SRC
+
+#+BEGIN_NOTES
+- We can paramaterise 'data'
+
+- But the map and remove still make assumptions about the container
+#+END_NOTES
+
+* ...Not really
+
+#+BEGIN_SRC clojure
+(def v [1 2 3 4])
+;; #'user/v
+
+(type v)
+;; clojure.lang.PersistentVector
+
+(type (map inc v))
+;; clojure.lang.LazySeq
+
+(type (mapv inc v))
+;; clojure.lang.PersistentVector
+#+END_SRC
+
+#+BEGIN_NOTES
+- Map and mapv are tied to concrete representations
+
+- Also intermediate collections, space and time hungry
+#+END_NOTES
+
+* Enter Transducers
+
+[[./images/decorator.png]]
+
+#+BEGIN_NOTES
+- Introduced in Clojure 1.7 around a year ago
+- Separate the transformation from the source AND sink
+#+END_NOTES
+
+* No Seq in Sight
+
+#+BEGIN_SRC clojure
+(def xform
+  (comp (filter relevant?)
+        (map convert-currency)
+        (map assign-score)))
+#+END_SRC
+
+#+BEGIN_NOTES
+- This is Clojure 1.7 map and remove
+- They have become transducers
+- Their composition is also a transducer
+
+- See it in use
+#+END_NOTES
+
+* Add the sequence
+
+#+BEGIN_SRC clojure
+(sequence xform (load-data "data.edn"))
+
+;;({:name "A", :fx 0.8, :a 112.5, :b 62.5, :score 175.0}
+;; {:name "B", :fx 0.2, :a 400.0, :b 400.0, :score 800.0}
+;; {:name "D", :fx 0.5, :a 100.0, :b 140.0, :score 240.0})
+#+END_SRC
+
+#+BEGIN_NOTES
+- 1.7 introduces sequence function
+- Produces lazy sequence
+#+END_NOTES
+
+* It is an open system
+
+#+BEGIN_SRC clojure
+(->> (load-data "data.edn")
+     (sequence (comp xform (take 2))))
+
+;;({:name "A", :fx 0.8, :a 112.5, :b 62.5, :score 175.0}
+;; {:name "B", :fx 0.2, :a 400.0, :b 400.0, :score 800.0})
+
+(->> (load-data "data.edn")
+     (sequence (comp xform (map :score))))
+
+;; (175.0 800.0 240.0)
+#+END_SRC
+
+#+BEGIN_NOTES
+- Compose transducers to get another transducer
+
+- Take score as example, how would we sum up?
+#+END_NOTES
+
+* Sum up a sequence
+
+#+BEGIN_SRC clojure
+(->> (load-data "data.edn")
+     (sequence (comp xform (map :score)))
+     (reduce +))
+
+;; 1215.0
+#+END_SRC
+
+#+BEGIN_NOTES
+- Added intermediate collection back
+#+END_NOTES
+
+* Transduce
+
+#+BEGIN_SRC clojure
+(->> (load-data "data.edn")
+     (transduce (comp xform (map :score)) +))
+
+;; 1215.0
+#+END_SRC
+
+#+BEGIN_NOTES
+- Transduce added in Clojure 1.7
+- Takes a transformation and a step function
+
+- What does a step function look like?
+#+END_NOTES
+
+* Reducing step function
+
+#+BEGIN_SRC clojure
+(+)
+;; 0
+
+(+ 42)
+;; 42
+
+(+ 21 21)
+;; 42
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(conj)
+;; []
+
+(conj [42])
+;; [42]
+
+(conj [21] 21)
+;; [21 21]
+#+END_SRC
+
+* An IQR step function
+
+https://github.com/HdrHistogram/HdrHistogram
+
+#+BEGIN_SRC clojure
+(defn hist-iqr
+  ;; Zero arity init
+  ([] (DoubleHistogram. 1e8 3))
+  
+  ;; Two arity step
+  ([hist x]
+   (doto hist
+     (.recordValue x)))
+
+  ;; Single arity complete
+  ([hist]
+   (vector (.getValueAtPercentile hist 25)
+           (.getValueAtPercentile hist 75))))
+#+END_SRC
+
+#+BEGIN_NOTES
+- Init is optional
+#+END_NOTES
+
+* Using the custom step
+
+#+BEGIN_SRC clojure
+(->> (load-data "data.edn")
+     (transduce (comp xform (map :score)) hist-iqr))
+
+;; [175.0 240.0]
+#+END_SRC
+
+#+BEGIN_NOTES
+- Identical transformer, very different output
+#+END_NOTES
+
+* Sequential processing
+
+#+BEGIN_SRC clojure
+(defn iqr-sequence [xform data]
+  (let [[from to] (->> data
+                       (transduce (comp xform (map :score)) hist-iqr))]
+    (->> data
+         (sequence (comp xform (filter #(<= from (:score %) to)))))))
+#+END_SRC
+
+#+BEGIN_NOTES
+- Destructure IQR
+- No additional sequences created
+
+- Let's assume we want to calculate mean...
+#+END_NOTES
+
+* Mean step function
+
+#+BEGIN_SRC clojure
+(defn mean-step
+  ([] {:sum 0 :count 0})
+  ([accum x]
+   (-> (update-in accum [:count] inc)
+       (update-in [:sum] + x)))
+  ([{:keys [sum count]}]
+   (/ sum count)))
+
+(->> (load-data "data.edn")
+     (transduce (comp xform (map :score)) mean-step))
+
+;; 405.0
+#+END_SRC
+
+#+BEGIN_NOTES
+- Once again:
+- init
+- step
+- completion
+
+NB: mean-step - will refer to later
+#+END_NOTES
+
+* Mean of the IQR
+
+#+BEGIN_SRC clojure
+(defn iqr-mean [xform data]
+  (let [[from to] (->> data
+                       (transduce (comp xform (map :score)) hist-iqr))]
+    (->> data
+         (transduce (comp xform
+                     (filter #(<= from (:score %) to))
+                     (map :score))
+                    mean-step))))
+
+;; 207.5
+#+END_SRC
+
+#+BEGIN_NOTES
+- No intermediate collections
+
+- Are we done? No - parallelism
+#+END_NOTES
+
+* Enter Reducers
+
+- Pre-date transducers
+- Also aim to reduce number of intermediate collections
+- Bring parallelism through Java's fork/join
+
+#+BEGIN_NOTES
+- Fork / join available in Java 7 +
+- Available since 2011
+#+END_NOTES
+
+* Fork / Join
+
+#+BEGIN_SRC txt
+solve(problem):
+    if problem is small enough:
+        solve problem directly (sequential algorithm)
+    else:
+        for part in subdivide(problem)
+            fork subtask to solve part
+        join all subtasks spawned in previous loop
+        combine results from subtasks
+#+END_SRC
+
+#+BEGIN_NOTES
+- We can already solve the subparts
+- We need a way to combine their results
+
+- Not combine like Hadoop combiner
+#+END_NOTES
+
+* Parallel reduce / combine
+
+[[./images/reductions-tree.png]]
+
+* ...schematically
+
+[[./images/reduce-combine.png]]
+
+* Mean reducers
+
+#+BEGIN_SRC clojure
+(require ['clojure.core.reducers :as r])
+
+(defn mean-step
+  ([] {:sum 0 :count 0})
+  ([accum x]
+   (-> (update-in accum [:count] inc)
+       (update-in [:sum] + x)))
+  ([{:keys [sum count]}]
+   (/ sum count)))
+
+(defn mean-combiner
+  ;; Combiner is used for init value
+  ([] {:sum 0 :count 0})
+  ([a b]
+   (merge-with + a b)))
+
+(->> (load-data "data.edn")
+     (into [] (comp xform (map :score)))
+     (r/fold mean-combiner mean-step))
+
+;; {:sum 1215.0, :count 3}
+#+END_SRC
+
+#+BEGIN_NOTES
+- Fold takes the combiner and step function
+
+- Using into Clojure's generic collection
+- Again, intermediate collection before fold
+- The completion function isn't called
+#+END_NOTES
+
+* Intermediate collections revisited
+
+#+BEGIN_SRC clojure
+(def scorer
+  (comp xform (map :score)))
+
+(->> (load-data "data.edn")
+     (into [] scorer)
+     (r/fold mean-combiner mean-step))
+;; {:sum 1215.0, :count 3}
+
+(->> (load-data "data.edn")
+     (r/fold mean-combiner (scorer mean-step)))
+;; {:sum 1215.0, :count 3}
+#+END_SRC
+
+#+BEGIN_NOTES
+- Scorer is our transducer
+- Getting a reducing function 'out of' a transducer
+#+END_NOTES
+
+* Anatomy of a transducer
+
+#+BEGIN_SRC clojure
+(defn filter' [pred]
+  (fn [rf]
+    (fn
+      ([] (rf))
+      ([result] (rf result))
+      ([result input]
+       (if (pred input)
+         (rf result input)
+         result)))))
+
+(transduce (filter' even?) conj [1 2 3 4 5 6])
+
+;; [2 4 6]
+#+END_SRC
+
+#+BEGIN_NOTES
+- transducers are just functions of 3 arities
+- arity zero is init
+- arity one is completion
+- arity two is the reducing function
+- all just function composition
+- these ideas are general
+#+END_NOTES
+
+* Enter Tesser
+
+https://github.com/aphyr/tesser
+
+#+BEGIN_SRC clojure
+(:require [tesser.core :as t]
+          [tesser.math :as m])
+
+(def mean-fold
+  (->> (t/filter relevant?)
+       (t/map convert-currency)
+       (t/map assign-score)
+       (t/map :score)
+       (m/mean)))
+
+(-> (t/chunk 1024 (load-data "data.edn"))
+    (t/tesser mean-fold))
+;; 405.0
+#+END_SRC
+
+#+BEGIN_NOTES
+- The mean fold is a composition of processing steps (no data)
+- Tesser requires us to explicitly chunk data (no fork/join)
+
+- How does Tesser represent folds...
+#+END_NOTES
+
+* Mean recipe
+
+#+BEGIN_SRC clojure
+{:reducer-identity  (constantly [0 0])
+ :reducer           (fn reducer [[s c] x]
+                      [(+ s x) (inc c)])
+ :post-reducer      identity
+ :combiner-identity (constantly [0 0])
+ :combiner          (fn combiner [x y] (core/map + x y))
+ :post-combiner     (fn post-combiner [x]
+                      (double (/ (first x) (core/max 1 (last x)))
+#+END_SRC
+
+#+BEGIN_NOTES
+- Actually Tesser's internal representation
+
+- Can we define our own? Sure!
+#+END_NOTES
+
+* Defining our own fold
+
+#+BEGIN_SRC clojure
+(def iqr-transform
+  {:reducer-identity (fn [] (DoubleHistogram. 1e8 3))
+   :reducer (fn [hist x]
+              (doto hist
+                (.recordValue x)))
+   :post-reducer identity
+   :combiner-identity (fn [] (DoubleHistogram. 1e8 3))
+   :combiner (fn [a b]
+               (doto a (.add b)))
+   :post-combiner (fn [hist]
+                    (vector (.getValueAtPercentile hist 25)
+                            (.getValueAtPercentile hist 75)))})
+
+(def iqr-fold
+  (->> (t/filter relevant?)
+       (t/map convert-currency)
+       (t/map assign-score)
+       (t/map :score)
+       (t/fold iqr-transform)))
+
+(-> (t/chunk 1024 (load-data "data.edn"))
+    (t/tesser iqr-fold))
+;; [175.0 240.0]
+#+END_SRC
+
+#+BEGIN_NOTES
+- Note combiner function. Adds histograms calculated independently.
+- Tesser provides tesser.math namespace providing a variety of useful functions.
+#+END_NOTES
+
+* Mathematical helpers
+
+- mean
+- variance
+- standard-deviation
+- covariance
+- correlation
+- covariance-matrix
+- correlation-matrix
+- digest (histogram, cardinality estimation)
+
+* Calculating variance
+
+#+BEGIN_SRC clojure
+{:reducer-identity (constantly [0 0 0])
+ :reducer (fn count-mean-sq [[count mean sum-of-squares] x]
+            (let [count' (inc count)
+                  mean'  (+ mean (/ (- x mean) count'))]
+              [count'
+               mean'
+               (+ sum-of-squares (* (- x mean') (- x mean)))]))
+ :post-reducer identity
+ :combiner-identity (constantly [0 0 0])
+ :combiner (fn partcmsq [[c m sq] [c2 m2 sq2]]
+             (let [count (+ c c2)]
+               (if (zero? count)
+                 [c m sq]
+                 [count
+                  (/ (+ (* c m) (* c2 m2)) count)
+                  (+ sq sq2 (/ (* (- m2 m) (- m2 m) c c2) count))])))
+ :post-combiner (fn vardiv [x]
+                  (double (/ (last x) (core/max 1 (dec (first x))))))}
+#+END_SRC
+
+
+* Other combinators
+
+#+BEGIN_SRC clojure
+(def multi-iqr-fold
+  (->> (t/filter relevant?)
+       (t/map convert-currency)
+       ;; Facet runs fold on all keys in a map
+       (t/map #(select-keys % [:measure-a :measure-b]))
+       (t/facet)
+       (t/fold iqr-transform)))
+
+(-> (t/chunk 1024 (load-data "data.edn"))
+    (t/tesser multi-iqr-fold))
+
+;; {:measure-a [100.0 112.5] :measure-b [62.5 140.09375]}
+#+END_SRC
+
+#+BEGIN_NOTES
+- Facet when your input is a map
+- You'd like to run the same fold on all values
+#+END_NOTES
+
+* Other combinators
+
+#+BEGIN_SRC clojure
+(def fused-fold
+  (->> (t/remove irrelevant?)
+       (t/map convert-currency)
+       (t/map assign-score)
+       ;; Fuse runs different named folds
+       (t/fuse {:count (t/count)
+                :iqr   (->> (t/map :score)
+                            (t/fold iqr-transform))})))
+
+(-> (t/chunk 1024 (load-data "data.edn"))
+    (t/tesser fused-fold))
+
+;; {:count 3, :iqr [175.0 240.0]}
+#+END_SRC
+
+#+BEGIN_NOTES
+- You'd to calculate several folds in parallel
+#+END_NOTES
+
+* Simple Regression
+
+#+BEGIN_SRC clojure
+(defn calculate-coefficients [{:keys [covariance variance-x
+                                      mean-x mean-y]}]
+  (let [slope (/ covariance variance-x)]
+    {:intercept (- mean-y (* mean-x slope))
+     :slope     slope}))
+
+(defn linear-regression [fx fy fold]
+  (->> fold
+       (t/fuse {:covariance (m/covariance fx fy)
+                :variance-x (m/variance (t/map fx))
+                :mean-x (m/mean (t/map fx))
+                :mean-y (m/mean (t/map fx))})
+       (t/post-combine calculate-coefficients)))
+
+(def linear-regression-fold
+  (->> (t/filter relevant?)
+       (t/map convert-currency)
+       (linear-regression :measure-a :measure-a)))
+
+(-> (t/chunk 1024 (load-data "data.edn"))
+    (t/tesser linear-regression-fold))
+
+;; {:intercept 68.05555555555557, :slope 0.6666666666666666}
+#+END_SRC
+
+#+BEGIN_NOTES
+- Having calculated many statistics
+- Want to perform some post-processing on the results
+- Keep it within the fold
+
+- Where's my cake?
+#+END_NOTES
+
+* Yes, it is web scale
+
+#+BEGIN_SRC clojure
+(:require [tesser.hadoop :as h]
+          [parkour.io.text :as text]
+          [parkour.tool :as tool])
+(:gen-class)
+
+(defn linear-regression-dfold [fx fy]
+  (->> (t/map read-string)
+       (t/filter relevant?)
+       (t/map convert-currency)
+       (linear-regression fx fy)))
+
+(defn tool [conf input-file work-dir]
+  (let [dseq (text/dseq input-file)]
+    (h/fold conf dseq work-dir
+            #'linear-regression-dfold
+            :measure-a :measure-b)))
+
+(defn -main [& args]
+  (System/exit (tool/run tool args)))
+#+END_SRC
+
+#+BEGIN_NOTES
+- We can take the same fold apply it in a very different environment
+- Develop locally, run remotely
+#+END_NOTES
+
+* Summary
+
+- Separate process from substrate
+- Transducers, step functions and transducible processes
+- Reducing and combining functions
+- Create composable, extensible units of computation
+- Defer decisions about context
+- Benefit
+
+* Thanks!
+
+https://github.com/henrygarner/data-science-london-oct-2015
+
+[[./images/henrygarner.jpeg]]
+
+Henry Garner
+
+@henrygarner
+
+* If you liked this...
+
+http://cljds.com/cljds-book | 
+http://cljds.com/cljds-amzn
+
+[[./images/clojure-data-science.png]]
+
+#+BEGIN_NOTES
+- This is new material
+- Cover Clojure applied to statistical analysis
+- Ideally you know a little Clojure already
+- Learn statistics and machine learning with Clojure
+#+END_NOTES
